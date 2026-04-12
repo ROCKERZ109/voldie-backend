@@ -45,7 +45,7 @@ async def get_cafe():
     cafe = get_mood_lifting_cafe()
     return {"cafe": cafe}
 
-# @app.post("/api/invite")
+@app.post("/api/invite")
 async def send_invite(request: InviteRequest):
         # print(f"🛠️ [DEV MOCK] Code Red Alert triggered for: {request.cafe_name}")
         # success = True # Forcing success for UI testing

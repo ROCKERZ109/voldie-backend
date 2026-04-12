@@ -110,7 +110,9 @@ def agentic_job_search(query_type="backend", custom_query=None):
             search_depth="advanced",
             max_results=5,
             include_domains=[
-                "linkedin.com"
+                "linkedin.com",
+                "glassdoor.com",
+                "indeed.com",
             ],
         )
         all_results.extend(search_result.get("results", []))
