@@ -1,0 +1,33 @@
+# 🚨 SECRETS (NEVER COMMIT THESE)
+.env
+.env.*
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Logs (Humne logs/ directory banayi thi, usko ignore marna zaroori hai)
+logs/
+*.log
+
+# OS Generated Files (Mac/Windows kachra)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
