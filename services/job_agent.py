@@ -103,7 +103,7 @@ def agentic_job_search(query_type="backend", custom_query=None):
         print("Auto Search Mode Activated! Generating dynamic queries...")
         queries = generate_dynamic_queries(query_type)
     all_results = []
-
+    print(f"Executing Tavily searches for {(queries)} queries...")
     for q in queries:
         search_result = tavily_client.search(
             query=q,
@@ -126,7 +126,7 @@ def extract_page_content(url, fallback_snippet):
         if "linkedin" in url:
             print(f"🔵 LinkedIn detected. Routing to Jina.ai for {url[:30]}...")
             reader_url = f"https://r.jina.ai/{url}"
-            response = requests.get(reader_url, timeout=5)
+            response = requests.get(reader_url, timeout=10)
 
             if response.status_code == 200 and "Just a moment..." not in response.text:
                 text = response.text
@@ -152,7 +152,7 @@ def extract_page_content(url, fallback_snippet):
             data = {"url": url, "formats": ["markdown"], "onlyMainContent": True}
 
             response = requests.post(
-                firecrawl_url, headers=headers, json=data, timeout=15
+                firecrawl_url, headers=headers, json=data, timeout=18
             )
             if response.status_code == 200:
                 result = response.json()
