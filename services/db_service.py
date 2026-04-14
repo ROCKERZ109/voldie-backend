@@ -62,3 +62,13 @@ def update_job_status(job_id: str, new_status: str):
     except Exception as e:
         print(f"🚨 DB Update Error: {e}")
         return None
+
+def delete_job_from_tracker(job_id: str):
+    """Deletes a job from the tracker."""
+    try:
+        supabase = get_db()
+        response = supabase.table("tracked_jobs").delete().eq("id", job_id).execute()
+        return response.data
+    except Exception as e:
+        print(f"🚨 DB Delete Error: {e}")
+        return None

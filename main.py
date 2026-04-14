@@ -5,7 +5,7 @@ from fastapi import Request
 
 # Import our services
 from models.tracker import StatusUpdateRequest
-from services.db_service import get_tracked_jobs, log_agent_memory, save_tracked_job, update_job_status
+from services.db_service import get_tracked_jobs, log_agent_memory, save_tracked_job, update_job_status, delete_job_from_tracker
 from models.invite import InviteRequest
 from models.job import ExtractRequest, FeedbackRequest, JobSearchRequest
 from models.mood import MoodRequest
@@ -118,3 +118,12 @@ async def change_job_status(job_id: str, request: StatusUpdateRequest):
     if updated:
         return {"success": True, "data": updated}
     raise HTTPException(status_code=500, detail="Failed to update job status")
+
+@app.delete("/api/tracker/{job_id}")
+async def delete_job(job_id: str):
+    try:
+        # Supabase se job delete maar do
+        delete_job_from_tracker(job_id)
+        return {"status": "success", "message": "Job sent to the void! 🕳️"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
