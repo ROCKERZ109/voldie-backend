@@ -12,6 +12,7 @@ from groq import Groq
 from openai import OpenAI
 
 # Internal Services
+from services.resume_agent import get_resume_profile
 from services.db_service import save_tracked_job
 from utils.database import get_db
 from fastapi import HTTPException
@@ -126,7 +127,7 @@ def extract_page_content(url, fallback_snippet):
         if "linkedin" in url:
             print(f"🔵 LinkedIn detected. Routing to Jina.ai for {url[:30]}...")
             reader_url = f"https://r.jina.ai/{url}"
-            response = requests.get(reader_url, timeout=10)
+            response = requests.get(reader_url, timeout=20)
 
             if response.status_code == 200 and "Just a moment..." not in response.text:
                 text = response.text
@@ -137,7 +138,7 @@ def extract_page_content(url, fallback_snippet):
 
                 compressed_text = " ".join(text.split())
                 print("✅ Jina deep-read successful!")
-                return compressed_text[:4000]
+                return compressed_text
             else:
                 return fallback_snippet
 
@@ -160,7 +161,7 @@ def extract_page_content(url, fallback_snippet):
                     text = result["data"]["markdown"]
                     compressed_text = " ".join(text.split())
                     print("✅ Firecrawl deep-read successful!")
-                    return compressed_text[:4000]
+                    return compressed_text
                 else:
                     return fallback_snippet
             else:
@@ -171,8 +172,7 @@ def extract_page_content(url, fallback_snippet):
         return fallback_snippet
 
 
-# 🚨 UPDATED: Now powered by Qwen-Plus (Alibaba)
-def process_jobs_with_ai(mood, raw_results, memory=""):
+def process_jobs_with_ai(mood, raw_results, memory="", resume_data=None):
     context = ""
     print("🧠 Architect is preparing to analyze the job leads with deep content...")
 
@@ -184,16 +184,29 @@ def process_jobs_with_ai(mood, raw_results, memory=""):
                 deep_content = parts[1]
         context += f"JOB #{idx}\nTitle: {j['title']}\nURL: {j['url']}\nDeep Content: {deep_content}\n---\n"
 
+    # 🧠 INTELLIGENCE INJECTION: Format the resume for the AI
+    resume_context = "No synced resume available. Rely on general Junior/Entry-level matching."
+    if resume_data:
+        resume_context = f"""
+        CANDIDATE PROFILE (FROM SYNCED CV):
+        - Current Role: {resume_data.get('current_role', 'Not specified')}
+        - Experience: {resume_data.get('experience_years', 0)} years
+        - Core Tech Stack: {', '.join(resume_data.get('parsed_skills', []))}
+        - Target Roles: {', '.join(resume_data.get('target_roles', []))}
+        """
+
     SYSTEM_PROMPT = f"""
     You are 'The Architect,' an elite, highly analytical AI Tech Recruiter.
-    Mission: Filter the provided raw job postings and deep content to find the absolute best Junior Backend/Fullstack software engineering roles in Gothenburg.
+    Mission: Filter the provided raw job postings and deep content to find the absolute best software engineering roles for this specific candidate.
 
     USER MEMORY (Her career preferences):
     {memory}
 
+    {resume_context}
+
     STRICT FILTERING RULES:
-    1. EXPERIENCE CHECK: REJECT immediately if '3+ years', 'Senior', or 'Lead'  or 'several years' or 'years of experience' is explicitly mentioned. If experience is more than 1 year, REJECT unless the job is from a super supportive company and the match_reason justifies it based on her mood.
-    2. ACCEPTANCE: KEEP if 'Junior', 'Entry', 'Graduate', or if experience is absent.
+    1. EXPERIENCE CHECK: Cross-reference the job's required experience with the CANDIDATE PROFILE. REJECT immediately if the job demands 'Senior', 'Lead', or significantly more years of experience than she has.
+    2. SKILL ALIGNMENT: Prioritize jobs where the required technologies overlap strongly with her Core Tech Stack.
     3. ANTI-AGGREGATOR RULE (CRITICAL): DO NOT output generic search pages or lists. You MUST extract SPECIFIC, individual job roles.
     4. SMART URL EXTRACTION: Extract the specific URL associated with that individual job.
 
@@ -206,29 +219,26 @@ def process_jobs_with_ai(mood, raw_results, memory=""):
                 "title": "Exact Individual Job Title (e.g. Junior Developer)",
                 "company": "Specific Company Name",
                 "apply_url": "The specific URL for this individual job extracted from the Markdown.",
-                "match_reason": "A precise reason why this specific role fits her."
+                "match_reason": "A precise reason why this specific role fits her, EXPLICITLY mentioning her parsed skills (e.g., 'Matches your React and Next.js stack perfectly')."
             }}
         ]
     }}
     """
 
-    print("🧠 Elite 120B Recruiter (Qwen-Plus) is analyzing the deep content...")
+    print("🧠 Elite 120B Recruiter (Qwen-Plus) is cross-referencing jobs with CV...")
     try:
-        # 🚨 Switched from Groq to Qwen-Plus Client
         completion = qwen_client.chat.completions.create(
-            model="qwen3.5-plus",  # Or "group-qwen3.5-plus" based on your exact Alibaba contract
+            model="qwen3.5-plus",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    # 🚨 FIX: Prompt ke end mein explicitly "JSON format" likh diya!
-                    "content": f"You are a supportive career coach. The user is a bootcamp grad currently feeling '{mood}'. Do NOT discard high-quality jobs. Instead, select the best IT jobs from the context and tailor the 'match_reason' to their mood. \n- If they are feeling 'burnt out', highlight mentorship, stability, or supportive culture in the match_reason.\n- If they are feeling 'pumped', highlight growth, tech-stack, and impact.\nContext:\n{context}\n\nCRITICAL: You must return your final output in JSON format.",
+                    "content": f"You are a supportive career coach. The user is currently feeling '{mood}'. Do NOT discard high-quality jobs that match her profile. Instead, select the best IT jobs from the context and tailor the 'match_reason' to BOTH her CV skills and her mood. \n- If feeling 'burnt out', highlight mentorship or tech she already knows well.\n- If feeling 'pumped', highlight growth or new stack challenges.\nContext:\n{context}\n\nCRITICAL: You must return your final output in JSON format.",
                 },
             ],
-            temperature=0.7,
+            temperature=0.3, # Solid sweet spot!
             response_format={"type": "json_object"},
         )
-        # Parse output from Qwen
         raw_output = completion.choices[0].message.content
         return json.loads(raw_output)
     except Exception as e:
@@ -242,14 +252,14 @@ def run_job_hunt(mood: str, query_type="backend", custom_query=None):
         print(f"🧠 Memory Loaded: {memory}")
 
         raw_results = agentic_job_search(query_type, custom_query)
-
+        resume_data = get_resume_profile("anastasia")
         if not raw_results:
             return {
                 "market_analysis": "The market is unusually quiet today. Let's try adjusting our search parameters later.",
                 "jobs": [],
             }
 
-        final_json = process_jobs_with_ai(mood, raw_results, memory)
+        final_json = process_jobs_with_ai(mood, raw_results, memory, resume_data=resume_data)
         return final_json
 
     except Exception as e:
