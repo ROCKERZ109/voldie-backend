@@ -7,7 +7,7 @@ class JobSearchRequest(BaseModel):
     mood: str
     query_type: str = "backend" # Default is backend, but she can change it
     custom_query: Optional[str] = None
-
+    user_id: Optional[str] = None  # Future use for personalized search 
 
 class FeedbackRequest(BaseModel):
     user_id: str  # Future use for personalized learning

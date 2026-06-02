@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 import requests
+from services.auth import get_current_user
 from utils.database import get_db
 import httpx
 import os
@@ -11,7 +12,7 @@ import io
 from PyPDF2 import PdfReader
 from groq import Groq
 import supabase
-import supabase
+from fastapi import Depends
 
 from models.resume import ParsedResume, ResumeURLRequest
 
@@ -87,7 +88,7 @@ def get_resume_profile(user_id: str):
     """Fetches the user's current saved profile to display on the dashboard."""
     try:
         supabase = get_db()
-        response = supabase.table('resume_profiles').select('*').eq('user_id', 'anastasia').execute()
+        response = supabase.table('resume_profiles').select('*').eq('user_id', user_id).execute()
 
         if response.data and len(response.data) > 0:
             return {"status": "success", "data": response.data[0]}
@@ -98,7 +99,7 @@ def get_resume_profile(user_id: str):
         raise HTTPException(status_code=500, detail="Failed to fetch resume profile from database.")
 
 @router.post("/url")
-async def parse_resume_url(request: ResumeURLRequest):
+async def parse_resume_url(request: ResumeURLRequest, user_id: str = Depends(get_current_user)):
     """Endpoint 1: For GitHub Pages, Notion Docs, or public Web CVs"""
     print(f"🕵️‍♂️ Scanning URL: {request.url}")
     supabase = get_db()
@@ -112,7 +113,7 @@ async def parse_resume_url(request: ResumeURLRequest):
     # 3. Add raw text to the payload (we might need it later)
     parsed_data["raw_text"] = raw_text
     profile_payload = ParsedResume(
-        user_id="anastasia",
+        user_id=user_id,
         raw_text=parsed_data["raw_text"],
         parsed_skills=parsed_data.get("parsed_skills", []),
         experience_years=parsed_data.get("experience_years", 0),
@@ -126,7 +127,7 @@ async def parse_resume_url(request: ResumeURLRequest):
 
 
 @router.post("/upload")
-async def parse_resume_pdf(file: UploadFile = File(...)):
+async def parse_resume_pdf(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
     """Endpoint 2: For traditional PDF uploads"""
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed, Bawa!")
@@ -154,7 +155,7 @@ async def parse_resume_pdf(file: UploadFile = File(...)):
         parsed_data["raw_text"] = raw_text
         supabase = get_db()
         profile_payload = ParsedResume(
-            user_id="anastasia",
+            user_id=user_id,
             raw_text=parsed_data["raw_text"],
             parsed_skills=parsed_data.get("parsed_skills", []),
             experience_years=parsed_data.get("experience_years", 0),
@@ -174,10 +175,11 @@ async def parse_resume_pdf(file: UploadFile = File(...)):
 
 
 @router.get("/me")
-async def get_my_profile():
+async def get_my_profile(user_id: str = Depends(get_current_user)):
     """Fetches the user's current saved profile to display on the dashboard."""
     try:
-        response = get_resume_profile("anastasia")
+        print(f"Fetching profile for user_id: {user_id}")
+        response = get_resume_profile(user_id)
         if response.get("status") == "success" and len(response.get("data", [])) > 0:
             return {"status": "success", "data": json.loads(json.dumps(response["data"], default=str))}
         else:

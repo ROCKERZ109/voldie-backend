@@ -33,21 +33,21 @@ logging.basicConfig(
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
-DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")  # 🚨 Alibaba Qwen Key
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")  #  Alibaba Qwen Key
 
 # Initialize Clients
 tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
 db = get_db()
 
-# 🚨 Qwen-Plus Client Setup (OpenAI Compatible Mode)
+#  Qwen-Plus Client Setup (OpenAI Compatible Mode)
 qwen_client = OpenAI(
     api_key=DASHSCOPE_API_KEY,
     base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 )
 
 
-def get_user_memory(user_id="anastasia"):
+def get_user_memory(user_id: str):
     """Fetches her past likes and dislikes from Supabase"""
     try:
         response = db.table("agent_memory").select("*").eq("user_id", user_id).execute()
@@ -80,29 +80,13 @@ def get_user_memory(user_id="anastasia"):
             else "No past memory yet. She is an open book today."
         )
     except Exception as e:
-        print(f"🚨 Memory Error: {e}")
+        print(f" Memory Error: {e}")
         return "No memory available."
 
-
-def generate_dynamic_queries(query_type):
-    return [
-        f"Junior {query_type} developer jobs Gothenburg entry level 2026",
-        f"Junior {query_type} engineer jobs Gothenburg entry level 2026",
-        f"Software engineer Gothenburg 'no experience required' {query_type}",
-        f"Graduate software program Sweden 2026 {query_type} fullstack",
-        f"Entry level software engineer Gothenburg startup jobs",
-        f"Entry level software developer Gothenburg startup jobs",
-        f"React python node junior jobs Gothenburg 2026",
-    ]
-
-
-def agentic_job_search(query_type="backend", custom_query=None):
+def agentic_job_search(custom_query=None):
     if custom_query and custom_query.strip():
         print(f"Custom Mode Activated! Exact search: '{custom_query}'")
-        queries = [custom_query] # Sirf ek exact query jayegi!
-    else:
-        print("Auto Search Mode Activated! Generating dynamic queries...")
-        queries = generate_dynamic_queries(query_type)
+        queries = [custom_query]  # Sirf ek exact query jayegi!
     all_results = []
     print(f"Executing Tavily searches for {(queries)} queries...")
     for q in queries:
@@ -168,7 +152,7 @@ def extract_page_content(url, fallback_snippet):
                 return fallback_snippet
 
     except Exception as e:
-        print(f"🚨 Deep-read error: {e}. Using Tavily Fallback!")
+        print(f" Deep-read error: {e}. Using Tavily Fallback!")
         return fallback_snippet
 
 
@@ -185,7 +169,9 @@ def process_jobs_with_ai(mood, raw_results, memory="", resume_data=None):
         context += f"JOB #{idx}\nTitle: {j['title']}\nURL: {j['url']}\nDeep Content: {deep_content}\n---\n"
 
     # 🧠 INTELLIGENCE INJECTION: Format the resume for the AI
-    resume_context = "No synced resume available. Rely on general Junior/Entry-level matching."
+    resume_context = (
+        "No synced resume available. Rely on general Junior/Entry-level matching."
+    )
     if resume_data:
         resume_context = f"""
         CANDIDATE PROFILE (FROM SYNCED CV):
@@ -236,34 +222,36 @@ def process_jobs_with_ai(mood, raw_results, memory="", resume_data=None):
                     "content": f"You are a supportive career coach. The user is currently feeling '{mood}'. Do NOT discard high-quality jobs that match her profile. Instead, select the best IT jobs from the context and tailor the 'match_reason' to BOTH her CV skills and her mood. \n- If feeling 'burnt out', highlight mentorship or tech she already knows well.\n- If feeling 'pumped', highlight growth or new stack challenges.\nContext:\n{context}\n\nCRITICAL: You must return your final output in JSON format.",
                 },
             ],
-            temperature=0.3, # Solid sweet spot!
+            temperature=0.3,  # Solid sweet spot!
             response_format={"type": "json_object"},
         )
         raw_output = completion.choices[0].message.content
         return json.loads(raw_output)
     except Exception as e:
-        print(f"🚨 Qwen LLM Error: {e}")
+        print(f" Qwen LLM Error: {e}")
         return {"error": "The Recruiter AI encountered an error."}
 
 
-def run_job_hunt(mood: str, query_type="backend", custom_query=None):
+def run_job_hunt(user_id: str, mood: str, custom_query=None):
     try:
-        memory = get_user_memory()
+        memory = get_user_memory(user_id)
         print(f"🧠 Memory Loaded: {memory}")
 
-        raw_results = agentic_job_search(query_type, custom_query)
-        resume_data = get_resume_profile("anastasia")
+        raw_results = agentic_job_search( custom_query)
+        resume_data = get_resume_profile(user_id=user_id).get("data", {})
         if not raw_results:
             return {
                 "market_analysis": "The market is unusually quiet today. Let's try adjusting our search parameters later.",
                 "jobs": [],
             }
 
-        final_json = process_jobs_with_ai(mood, raw_results, memory, resume_data=resume_data)
+        final_json = process_jobs_with_ai(
+            mood, raw_results, memory, resume_data=resume_data
+        )
         return final_json
 
     except Exception as e:
-        print(f"🚨 Critical Failure in run_job_hunt: {e}")
+        print(f" Critical Failure in run_job_hunt: {e}")
         return {"error": "Failed to run the job hunt. Please check server logs."}
 
 
@@ -365,7 +353,6 @@ async def extract_job_from_url_or_text(
             parsed_data = json.loads(raw_json)
             # URL save karna mat bhulna agar wo passed thi
             parsed_data["url"] = url if url else ""
-            save_tracked_job(parsed_data)
             return parsed_data
 
     except Exception as e:
